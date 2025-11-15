@@ -30,6 +30,20 @@ RUN set -eux; \
     aws --version; \
     rm -rf /tmp/aws /tmp/awscliv2.zip
 
+# Non-root user
+RUN useradd -ms /bin/bash dev && \
+  usermod -aG sudo dev && \
+  echo "dev ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+USER dev
+WORKDIR /work
+
+# Install Claude Code as 'dev' (lands in /home/dev/.local/bin)
+RUN curl -fsSL https://claude.ai/install.sh | bash && \
+    /home/dev/.local/bin/claude --version
+
+USER root
+WORKDIR /work
+
 # Entrypoint script: fix docker.sock bind mount perms, drop root privs
 RUN cat > /usr/local/bin/start-claude <<'BASH' && chmod +x /usr/local/bin/start-claude
 #!/usr/bin/env bash
@@ -68,19 +82,5 @@ else
   run_as_dev "$*"
 fi
 BASH
-
-# Non-root user
-RUN useradd -ms /bin/bash dev && \
-  usermod -aG sudo dev && \
-  echo "dev ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
-USER dev
-WORKDIR /work
-
-# Install Claude Code as 'dev' (lands in /home/dev/.local/bin)
-RUN curl -fsSL https://claude.ai/install.sh | bash && \
-    /home/dev/.local/bin/claude --version
-
-USER root
-WORKDIR /work
 
 ENTRYPOINT ["/usr/local/bin/start-claude"]
