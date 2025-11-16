@@ -49,11 +49,6 @@ RUN cat > /usr/local/bin/start-claude <<'BASH' && chmod +x /usr/local/bin/start-
 #!/usr/bin/env bash
 set -euo pipefail
 
-SOCK=/var/run/docker.sock
-if [ -S "$SOCK" ]; then
-  chown dev "$SOCK" 2>/dev/null || true
-fi
-
 run_as_dev() {
   exec sudo -E -u dev -H env \
     HOME=/home/dev \
@@ -61,25 +56,22 @@ run_as_dev() {
     bash -lc "$*"
 }
 
-# If no args or first arg is "claude", run Claude with defaults; allow model override
-if [ "$#" -eq 0 ] || [ "${1:-}" = "claude" ]; then
-  [ "${1:-}" = "claude" ] && shift
-  has_model=false
-  for arg in "$@"; do
-    case "$arg" in
-      --model|--model=*) has_model=true ;;
-    esac
-  done
-  cmd="claude --dangerously-skip-permissions"
-  if [ "$has_model" = false ]; then
-    cmd="$cmd --model 'sonnet[1m]'"
-  fi
-  # Append any user args (may include their own --model)
-  [ "$#" -gt 0 ] && cmd="$cmd $*"
-  run_as_dev "$cmd"
+SOCK=/var/run/docker.sock
+if [ -S "$SOCK" ]; then
+  chown dev "$SOCK" 2>/dev/null || true
+fi
+
+# If first arg doesn't start with '-', run it as a command instead of claude
+if [ $# -gt 0 ] && [[ "$1" != -* ]]; then
+  run_as_dev "$@"
+fi
+
+# Otherwise, run claude with --dangerously-skip-permissions and any provided options
+# Default model is 'sonnet[1m]' but can be overridden by --model in args
+if [[ "$*" == *"--model"* ]]; then
+  run_as_dev claude --dangerously-skip-permissions "$@"
 else
-  # Arbitrary command path; run as dev
-  run_as_dev "$*"
+  run_as_dev claude --dangerously-skip-permissions --model 'sonnet[1m]' "$@"
 fi
 BASH
 
