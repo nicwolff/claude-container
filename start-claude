@@ -1,11 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+DEV_ENV="sudo -E -u dev -H env HOME=/home/dev"
+
 run_as_dev() {
-  exec sudo -E -u dev -H env \
-    HOME=/home/dev \
-    PATH="/home/dev/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
-    bash -lc "$*"
+  $DEV_ENV bash -lc "$*"
 }
 
 SOCK=/var/run/docker.sock
@@ -13,15 +12,20 @@ if [ -S "$SOCK" ]; then
   chown dev "$SOCK" 2>/dev/null || true
 fi
 
-# If first arg doesn't start with '-', run it as a command instead of claude
-if [ $# -gt 0 ] && [[ "$1" != -* ]]; then
-  run_as_dev "$@"
+# Register MCP server if not already registered
+if ! run_as_dev 'claude mcp list 2>/dev/null' | grep -q pdb; then
+  run_as_dev 'claude mcp add --transport stdio pdb -- python3 /home/dev/pdb_mcp_server.py'
 fi
 
-# Otherwise, run claude with --dangerously-skip-permissions and any provided options
-# Default model is 'sonnet[1m]' but can be overridden by --model in args
-if [[ "$*" == *"--model"* ]]; then
-  run_as_dev claude --dangerously-skip-permissions "$@"
-else
-  run_as_dev claude --dangerously-skip-permissions --model 'sonnet[1m]' "$@"
+# If first arg doesn't start with '-', run it as a command instead of claude
+if [ $# -gt 0 ] && [ "${1:0:1}" != "-" ]; then
+  exec $DEV_ENV bash -lc "$*"
 fi
+
+# Run claude with --dangerously-skip-permissions and any provided options
+# Default model is 'sonnet[1m]' but can be overridden by --model in args
+CLAUDE_CMD="claude --dangerously-skip-permissions"
+if [[ "$*" != *"--model"* ]]; then
+  CLAUDE_CMD="$CLAUDE_CMD --model sonnet[1m]"
+fi
+exec $DEV_ENV bash -lc "$CLAUDE_CMD $*"

@@ -7,6 +7,7 @@ A portable Docker-based development environment for running [Claude Code](https:
 - **Claude Code CLI** - Latest version installed and ready to use
 - **AWS CLI v2** - For AWS Bedrock integration and other AWS operations
 - **Docker + Docker Compose** - Full Docker support via socket mounting
+- **Python 3 + MCP** - Python debugging support with pre-configured Pdb MCP server
 - **Non-root execution** - Runs as unprivileged `dev` user for security
 - **Volume mounting** - Seamlessly access your host repositories
 - **Configuration persistence** - Your Claude and AWS configs are mounted from host
@@ -139,3 +140,21 @@ Run Claude Code once on your host to set up authentication, or manually place yo
   "apiKey": "your-api-key-here"
 }
 ```
+
+## MCP Server (Python Debugger)
+
+The container includes a pre-configured MCP server for Python debugging with Pdb in Docker containers. The server provides three tools:
+
+- **`start_pdb_session`** - Start a Pdb debugging session in a Docker Compose service
+- **`send_pdb_command`** - Send commands to the active Pdb session (e.g., `n`, `s`, `p var`)
+- **`stop_pdb_session`** - Stop the active debugging session
+
+### Automatic Configuration
+
+On startup, the container automatically registers the pdb MCP server using `claude mcp add`:
+
+- The server is only registered if it's not already present
+- It's registered globally for Claude Code CLI, so you can use it across all your projects
+- The configuration persists in your `~/.claude/settings.json` file (which is mounted from your host)
+
+This means you can use the container's debugging capabilities alongside any other MCP servers you have configured.
