@@ -1,0 +1,6 @@
+{
+  "pdb": {
+    "command": "python3",
+    "args": ["/home/dev/pdb_mcp_server.py"]
+  }
+}

@@ -12,19 +12,14 @@ if [ -S "$SOCK" ]; then
   chown dev "$SOCK" 2>/dev/null || true
 fi
 
-# Register MCP server if not already registered
-if ! run_as_dev 'claude mcp list 2>/dev/null' | grep -q pdb; then
-  run_as_dev 'claude mcp add --transport stdio pdb -- python3 /home/dev/pdb_mcp_server.py'
-fi
-
 # If first arg doesn't start with '-', run it as a command instead of claude
 if [ $# -gt 0 ] && [ "${1:0:1}" != "-" ]; then
   exec $DEV_ENV bash -lc "$*"
 fi
 
-# Run claude with --dangerously-skip-permissions and any provided options
-# Default model is 'sonnet[1m]' but can be overridden by --model in args
-CLAUDE_CMD="claude --dangerously-skip-permissions"
+# Run claude with container plugin and --dangerously-skip-permissions
+# Default model can be overridden by --model in args
+CLAUDE_CMD="claude --plugin-dir /home/dev/container-plugin --dangerously-skip-permissions"
 if [[ "$*" != *"--model"* ]]; then
   CLAUDE_CMD="$CLAUDE_CMD --model us.anthropic.claude-opus-4-6-v1"
 fi

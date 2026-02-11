@@ -141,20 +141,80 @@ Run Claude Code once on your host to set up authentication, or manually place yo
 }
 ```
 
-## MCP Server (Python Debugger)
+## Container Plugin
 
-The container includes a pre-configured MCP server for Python debugging with Pdb in Docker containers. The server provides three tools:
+The container includes a built-in plugin that provides additional subagents and MCP servers. This plugin **layers on top of** any configuration you have in your mounted `~/.claude/` directory without modifying it.
 
-- **`start_pdb_session`** - Start a Pdb debugging session in a Docker Compose service
-- **`send_pdb_command`** - Send commands to the active Pdb session (e.g., `n`, `s`, `p var`)
-- **`stop_pdb_session`** - Stop the active debugging session
+### How It Works
 
-### Automatic Configuration
+The container uses Claude Code's `--plugin-dir` flag to load `/home/dev/container-plugin`, which contains:
 
-On startup, the container automatically registers the pdb MCP server using `claude mcp add`:
+```
+container-plugin/
+├── .claude-plugin/
+│   └── plugin.json       # Plugin manifest
+├── .mcp.json             # MCP server definitions
+└── agents/
+    └── python-test-debugger.md  # Subagent definitions
+```
 
-- The server is only registered if it's not already present
-- It's registered globally for Claude Code CLI, so you can use it across all your projects
-- The configuration persists in your `~/.claude/settings.json` file (which is mounted from your host)
+**Benefits of the plugin approach:**
 
-This means you can use the container's debugging capabilities alongside any other MCP servers you have configured.
+- **Non-invasive** - Doesn't modify your `~/.claude/settings.json`
+- **Layered** - Container tools add to (not replace) your existing config
+- **Priority** - Your user-level agents take precedence over plugin agents if names conflict
+
+### Included Subagents
+
+#### python-test-debugger
+
+A specialized agent for debugging failing Python tests interactively. Use it when:
+
+- VCR/mocking doesn't seem to be working
+- Tests fail after dependency updates
+- Async/event loop errors occur
+- Tests behave differently when run individually vs. in a suite
+
+The agent has access to the `pdb` MCP server for interactive debugging.
+
+#### memory-bank-analyzer
+
+An agent that extracts project context from `memory_bank/` files before starting implementation work. Claude uses this agent **proactively** after you define a task to:
+
+- Extract coding standards and style guidelines
+- Identify architectural patterns and conventions
+- Find project structure and organization principles
+- Understand testing approaches and requirements
+
+This ensures implementations follow your project's established patterns and standards.
+
+### Included MCP Servers
+
+#### pdb (Python Debugger)
+
+An MCP server for Python debugging with Pdb in Docker containers:
+
+- **`start_pdb_session`** - Start a Pdb session in a Docker Compose service
+- **`send_pdb_command`** - Send commands (e.g., `n`, `s`, `p var`)
+- **`stop_pdb_session`** - Stop the debugging session
+
+### Adding Your Own Container Extensions
+
+To add more subagents or MCP servers to the container:
+
+1. Add subagent markdown files to `container-plugin/agents/`
+2. Add MCP server definitions to `container-plugin/.mcp.json`
+3. Rebuild the container
+
+Example subagent (`container-plugin/agents/my-agent.md`):
+
+```markdown
+---
+name: my-agent
+description: Description of when Claude should use this agent
+tools: Read, Grep, Glob, Bash
+model: inherit
+---
+
+You are a specialist in...
+```

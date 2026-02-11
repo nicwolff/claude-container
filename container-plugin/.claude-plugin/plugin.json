@@ -1,0 +1,8 @@
+{
+  "name": "container-tools",
+  "description": "Container-provided subagents and MCP servers for enhanced debugging and development workflows",
+  "version": "1.0.0",
+  "author": {
+    "name": "claude-container"
+  }
+}
