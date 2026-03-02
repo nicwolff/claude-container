@@ -153,7 +153,6 @@ The container uses Claude Code's `--plugin-dir` flag to load `/home/dev/containe
 container-plugin/
 ├── .claude-plugin/
 │   └── plugin.json           # Plugin manifest
-├── .mcp.json                 # Global MCP server definitions (empty; servers defined per-skill)
 ├── pdb_mcp_server.py         # Pdb MCP server (loaded only when python-test-debugger is used)
 └── agents/
     └── python-test-debugger.md  # Subagent definitions (includes inline MCP server config)
