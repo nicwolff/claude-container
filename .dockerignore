@@ -1,0 +1,17 @@
+.git
+__pycache__
+*.pyc
+*.pyo
+*.egg-info
+.pytest_cache
+.coverage
+.tox
+venv
+env
+.vscode
+.idea
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+Makefile
