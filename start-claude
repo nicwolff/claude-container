@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-DEV_ENV=(sudo -E -u dev -H env HOME=/home/dev)
+# sudo's secure_path drops /home/dev/.local/bin, so set PATH explicitly
+DEV_PATH="/home/dev/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+DEV_ENV=(sudo -E -u dev -H env HOME=/home/dev PATH="$DEV_PATH")
 
 SOCK=/var/run/docker.sock
 if [ -S "$SOCK" ]; then
