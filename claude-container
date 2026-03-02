@@ -47,6 +47,12 @@ VOLUMES=(
 [ -d "${HOME}/.claude" ]   && VOLUMES+=(-v "${HOME}/.claude:/home/dev/.claude:rw")
 [ -f "${HOME}/.claude.json" ] && VOLUMES+=(-v "${HOME}/.claude.json:/home/dev/.claude.json:rw")
 
+# Mount user plugin directory if it exists
+USER_PLUGINS="${HOME}/.claude-plugins"
+if [ -d "$USER_PLUGINS" ]; then
+  VOLUMES+=(-v "${USER_PLUGINS}:/home/dev/user-plugins:ro")
+fi
+
 # Run the dev container
 exec docker run --rm -it \
   "${VOLUMES[@]}" -w "${PWD_ABS}" \

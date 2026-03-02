@@ -20,6 +20,12 @@ CLAUDE_ARGS=(
   --dangerously-skip-permissions
 )
 
+# Load user-supplied plugins if the directory was mounted
+USER_PLUGINS=/home/dev/user-plugins
+if [ -d "$USER_PLUGINS" ]; then
+  CLAUDE_ARGS+=(--plugin-dir "$USER_PLUGINS")
+fi
+
 HAS_MODEL=false
 for arg in "$@"; do
   if [[ "$arg" == "--model" ]]; then
