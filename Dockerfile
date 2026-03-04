@@ -22,7 +22,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
     PATH="/home/dev/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
     PIP_BREAK_SYSTEM_PACKAGES=1
 
-# Install runtime packages and Docker CLI, then remove build-only deps
+# Install runtime packages, Docker CLI, and GitHub CLI, then remove build-only deps
 RUN apt-get update && apt-get install -y --no-install-recommends \
       ca-certificates curl gnupg lsb-release less sudo git \
       python3 python3-pip python3-venv \
@@ -32,8 +32,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
       https://download.docker.com/linux/debian $(lsb_release -cs) stable" \
       > /etc/apt/sources.list.d/docker.list \
+  && curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+       | gpg --dearmor -o /etc/apt/keyrings/githubcli-archive-keyring.gpg \
+  && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] \
+      https://cli.github.com/packages stable main" \
+      > /etc/apt/sources.list.d/github-cli.list \
   && apt-get update && apt-get install -y --no-install-recommends \
-      docker-ce-cli docker-compose-plugin \
+      docker-ce-cli docker-compose-plugin gh \
   && apt-get purge -y --auto-remove gnupg lsb-release \
   && rm -rf /var/lib/apt/lists/*
 

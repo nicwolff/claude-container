@@ -20,6 +20,7 @@ Environment variables (passed through when set):
   AWS_PROFILE              AWS profile to use
   AWS_REGION               AWS region for API calls
   CLAUDE_CODE_USE_BEDROCK  Set to 1 for AWS Bedrock
+  CLAUDE_GITHUB_TOKEN      GitHub personal access token for gh CLI
 HELP
   exit 0
 fi
@@ -47,6 +48,12 @@ VOLUMES=(
 [ -d "${HOME}/.aws" ]      && VOLUMES+=(-v "${HOME}/.aws:/home/dev/.aws:ro")
 [ -d "${HOME}/.claude" ]   && VOLUMES+=(-v "${HOME}/.claude:/home/dev/.claude:rw")
 [ -f "${HOME}/.claude.json" ] && VOLUMES+=(-v "${HOME}/.claude.json:/home/dev/.claude.json:rw")
+if [ -f "${HOME}/.gitconfig" ]; then
+  VOLUMES+=(-v "${HOME}/.gitconfig:/home/dev/.gitconfig:ro")
+else
+  echo "Warning: ~/.gitconfig not found; git identity will be unavailable in the container" >&2
+fi
+[ -d "${HOME}/.config/gh" ] && VOLUMES+=(-v "${HOME}/.config/gh:/home/dev/.config/gh:rw")
 
 # Mount user plugin directory if it exists
 USER_PLUGINS="${HOME}/.claude-plugins"
@@ -62,4 +69,5 @@ exec docker run --rm -it \
   ${AWS_PROFILE:+-e "AWS_PROFILE=${AWS_PROFILE}"} \
   ${AWS_REGION:+-e "AWS_REGION=${AWS_REGION}"} \
   ${CLAUDE_CODE_USE_BEDROCK:+-e "CLAUDE_CODE_USE_BEDROCK=${CLAUDE_CODE_USE_BEDROCK}"} \
+  ${CLAUDE_GITHUB_TOKEN:+-e "GITHUB_TOKEN=${CLAUDE_GITHUB_TOKEN}"} \
   "$IMAGE" "$@"
