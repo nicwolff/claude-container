@@ -247,29 +247,61 @@ async def forward_chunked(src, dst):
 
 
 async def splice(r1, w1, r2, w2):
-    """Bidirectional byte forwarding until either side closes.
+    """Bidirectional byte forwarding until both directions
+    complete.
 
-    When one direction hits EOF or error, cancel the other.
+    When one direction hits EOF, propagate the half-close
+    and wait for the other direction to finish.
     """
-    task1 = asyncio.create_task(_forward_stream(r1, w2))
-    task2 = asyncio.create_task(_forward_stream(r2, w1))
+    task1 = asyncio.create_task(
+        _forward_stream(r1, w2),
+    )
+    task2 = asyncio.create_task(
+        _forward_stream(r2, w1),
+    )
     try:
         done, pending = await asyncio.wait(
             [task1, task2],
             return_when=asyncio.FIRST_COMPLETED,
         )
-        for task in pending:
-            task.cancel()
+        if pending:
+            completed = done.pop()
+            remaining = pending.pop()
+            if completed == task1:
+                _half_close(w2)
+            else:
+                _half_close(w1)
             try:
-                await task
-            except asyncio.CancelledError:
+                await remaining
+            except Exception:
                 pass
     finally:
+        for task in (task1, task2):
+            if not task.done():
+                task.cancel()
+                try:
+                    await task
+                except (
+                    asyncio.CancelledError,
+                    Exception,
+                ):
+                    pass
         for writer in (w1, w2):
             try:
                 writer.close()
             except Exception:
                 pass
+
+
+def _half_close(writer):
+    """Send write-EOF without tearing down the full
+    connection.
+    """
+    try:
+        if writer.can_write_eof():
+            writer.write_eof()
+    except Exception:
+        pass
 
 
 async def _forward_stream(reader, writer):
