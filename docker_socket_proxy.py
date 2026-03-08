@@ -247,29 +247,61 @@ async def forward_chunked(src, dst):
 
 
 async def splice(r1, w1, r2, w2):
-    """Bidirectional byte forwarding until either side closes.
+    """Bidirectional byte forwarding until both directions
+    complete.
 
-    When one direction hits EOF or error, cancel the other.
+    When one direction hits EOF, propagate the half-close
+    and wait for the other direction to finish.
     """
-    task1 = asyncio.create_task(_forward_stream(r1, w2))
-    task2 = asyncio.create_task(_forward_stream(r2, w1))
+    task1 = asyncio.create_task(
+        _forward_stream(r1, w2),
+    )
+    task2 = asyncio.create_task(
+        _forward_stream(r2, w1),
+    )
     try:
         done, pending = await asyncio.wait(
             [task1, task2],
             return_when=asyncio.FIRST_COMPLETED,
         )
-        for task in pending:
-            task.cancel()
+        if pending:
+            completed = done.pop()
+            remaining = pending.pop()
+            if completed == task1:
+                _half_close(w2)
+            else:
+                _half_close(w1)
             try:
-                await task
-            except asyncio.CancelledError:
+                await remaining
+            except Exception:
                 pass
     finally:
+        for task in (task1, task2):
+            if not task.done():
+                task.cancel()
+                try:
+                    await task
+                except (
+                    asyncio.CancelledError,
+                    Exception,
+                ):
+                    pass
         for writer in (w1, w2):
             try:
                 writer.close()
             except Exception:
                 pass
+
+
+def _half_close(writer):
+    """Send write-EOF without tearing down the full
+    connection.
+    """
+    try:
+        if writer.can_write_eof():
+            writer.write_eof()
+    except Exception:
+        pass
 
 
 async def _forward_stream(reader, writer):
@@ -383,21 +415,10 @@ def check_create_request(body, allowed_base, rw_base):
 def check_bind_string(bind, allowed_base, rw_base):
     """Validate a Binds entry ('host:container[:opts]').
 
-    On Linux, Docker's own volume parser treats a source
-    starting with '/' as a bind mount and anything else
-    (e.g. 'myvolume', 'project_data') as a named volume.
-    Compose resolves '~/', './', and env vars to absolute
-    paths before sending the API request, so those never
-    reach the daemon as-is.  If sent raw, the daemon would
-    treat '~/foo' or './src' as volume names, not paths.
-    We mirror Docker's own logic here.
-
     Returns an error message or None.
     """
     parts = bind.split(':')
     host_path = parts[0]
-    if not host_path.startswith('/'):
-        return None
     if not is_allowed_path(host_path, allowed_base):
         return f'bind mount not allowed: {host_path}'
     if not is_allowed_path(host_path, rw_base):

@@ -25,6 +25,7 @@ class MockWriter:
         self.data = bytearray()
         self.closed = False
         self.drain_count = 0
+        self.eof_written = False
 
     def write(self, data):
         self.data.extend(data)
@@ -34,6 +35,12 @@ class MockWriter:
 
     def close(self):
         self.closed = True
+
+    def can_write_eof(self):
+        return True
+
+    def write_eof(self):
+        self.eof_written = True
 
 
 def make_reader(data: bytes):
@@ -699,6 +706,37 @@ class TestForwardStream:
         await proxy._forward_stream(reader, writer)
 
 
+# -- _half_close ------------------------------------------
+
+
+class TestHalfClose:
+
+    def test_supported(self):
+        w = MockWriter()
+        proxy._half_close(w)
+        assert w.eof_written
+
+    def test_not_supported(self):
+        w = MockWriter()
+        w.can_write_eof = lambda: False
+        proxy._half_close(w)
+        assert not w.eof_written
+
+    def test_write_eof_raises(self):
+        w = MockWriter()
+        w.write_eof = MagicMock(
+            side_effect=OSError('broken'),
+        )
+        proxy._half_close(w)
+
+    def test_can_write_eof_raises(self):
+        w = MockWriter()
+        w.can_write_eof = MagicMock(
+            side_effect=RuntimeError('fail'),
+        )
+        proxy._half_close(w)
+
+
 # -- splice -----------------------------------------------
 
 
@@ -718,11 +756,11 @@ class TestSplice:
 
     @pytest.mark.asyncio
     async def test_one_side_closes_first(self):
-        """When one direction ends, the other is
-        cancelled."""
+        """When one direction ends first, the other
+        continues until done."""
         r1 = make_reader(b'short')
         w1 = MockWriter()
-        r2 = asyncio.StreamReader()
+        r2 = make_reader(b'')
         w2 = MockWriter()
         await proxy.splice(r1, w1, r2, w2)
         assert bytes(w2.data) == b'short'
@@ -745,25 +783,93 @@ class TestSplice:
         await proxy.splice(r1, w1, r2, w2)
 
     @pytest.mark.asyncio
-    async def test_cancelled_task_raises(self):
-        """CancelledError from pending task is caught."""
+    async def test_client_half_close(self):
+        """Client EOF first; server data still arrives."""
+        r1 = make_reader(b'')
+        w1 = MockWriter()
+        r2 = asyncio.StreamReader()
+        w2 = MockWriter()
 
-        async def slow_forward(reader, writer):
-            while True:
-                data = await reader.read(65536)
-                if not data:
-                    break
-                writer.write(data)
-                await writer.drain()
+        async def feed_later():
+            await asyncio.sleep(0.01)
+            r2.feed_data(b'container output')
+            r2.feed_eof()
 
-        r1 = make_reader(b'quick')
+        feeder = asyncio.create_task(feed_later())
+        await proxy.splice(r1, w1, r2, w2)
+        await feeder
+        assert bytes(w1.data) == b'container output'
+        assert w2.eof_written
+        assert w1.closed
+        assert w2.closed
+
+    @pytest.mark.asyncio
+    async def test_server_closes_first(self):
+        """Server EOF first; client data still arrives."""
+        r1 = asyncio.StreamReader()
+        w1 = MockWriter()
+        r2 = make_reader(b'server-data')
+        w2 = MockWriter()
+
+        async def feed_later():
+            await asyncio.sleep(0.01)
+            r1.feed_data(b'client-data')
+            r1.feed_eof()
+
+        feeder = asyncio.create_task(feed_later())
+        await proxy.splice(r1, w1, r2, w2)
+        await feeder
+        assert bytes(w1.data) == b'server-data'
+        assert bytes(w2.data) == b'client-data'
+        assert w1.eof_written
+        assert w1.closed
+        assert w2.closed
+
+    @pytest.mark.asyncio
+    async def test_remaining_task_raises(self):
+        """Exception from remaining task is caught."""
+        r1 = make_reader(b'')
+        w1 = MockWriter()
+        r2 = asyncio.StreamReader()
+        w2 = MockWriter()
+        original = proxy._forward_stream
+
+        async def error_forward(reader, writer):
+            if reader is r2:
+                await asyncio.sleep(0.01)
+                raise ValueError('unexpected')
+            return await original(reader, writer)
+
+        with patch.object(
+            proxy, '_forward_stream', error_forward,
+        ):
+            await proxy.splice(r1, w1, r2, w2)
+        assert w1.closed
+        assert w2.closed
+
+    @pytest.mark.asyncio
+    async def test_external_cancellation(self):
+        """External cancellation cleans up properly."""
+
+        async def uncatchable(reader, writer):
+            await asyncio.sleep(100)
+
+        r1 = asyncio.StreamReader()
         w1 = MockWriter()
         r2 = asyncio.StreamReader()
         w2 = MockWriter()
         with patch.object(
-            proxy, '_forward_stream', slow_forward,
+            proxy, '_forward_stream', uncatchable,
         ):
-            await proxy.splice(r1, w1, r2, w2)
+            task = asyncio.create_task(
+                proxy.splice(r1, w1, r2, w2),
+            )
+            await asyncio.sleep(0.01)
+            task.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await task
+        assert w1.closed
+        assert w2.closed
 
 
 # -- relay_response ---------------------------------------
