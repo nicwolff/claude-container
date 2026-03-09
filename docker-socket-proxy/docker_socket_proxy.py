@@ -53,6 +53,7 @@ def main():
 
 async def run_proxy(
     listen=None, upstream=None, ready_event=None,
+    stop_event=None,
 ):
     """Start the Unix socket server and run until signalled."""
     listen = listen or LISTEN_SOCK
@@ -70,13 +71,12 @@ async def run_proxy(
     LOG.info('listening on %s', listen)
     if ready_event is not None:
         ready_event.set()
-    stop = asyncio.Event()
+    stop = stop_event or asyncio.Event()
     loop = asyncio.get_event_loop()
     for sig in (signal.SIGTERM, signal.SIGINT):
         loop.add_signal_handler(sig, stop.set)
     await stop.wait()
     server.close()
-    await server.wait_closed()
 
 
 async def handle_connection(client_r, client_w, upstream):
@@ -416,9 +416,12 @@ def check_bind_string(bind, allowed_base, rw_base):
     """Validate a Binds entry ('host:container[:opts]').
 
     Returns an error message or None.
+    Named volumes (no leading /) are always allowed.
     """
     parts = bind.split(':')
     host_path = parts[0]
+    if not host_path.startswith('/'):
+        return None
     if not is_allowed_path(host_path, allowed_base):
         return f'bind mount not allowed: {host_path}'
     if not is_allowed_path(host_path, rw_base):

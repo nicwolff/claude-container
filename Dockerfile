@@ -63,7 +63,7 @@ USER root
 WORKDIR /work
 
 # Docker socket proxy: filter privileged containers and restrict mounts
-COPY docker_socket_proxy.py /usr/local/bin/docker-socket-proxy
+COPY docker-socket-proxy/docker_socket_proxy.py /usr/local/bin/docker-socket-proxy
 RUN chmod +x /usr/local/bin/docker-socket-proxy
 
 # Entrypoint script: launch proxy, drop root privs

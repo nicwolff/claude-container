@@ -6,7 +6,6 @@ import json
 import logging
 import os
 import runpy
-import signal
 import tempfile
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -1236,7 +1235,6 @@ class TestHandleConnection:
                 assert b'ok' in bytes(client_w.data)
             finally:
                 server.close()
-                await server.wait_closed()
 
     @pytest.mark.asyncio
     async def test_upstream_connect_fails(self):
@@ -1262,7 +1260,7 @@ class TestHandleConnection:
             sock = os.path.join(td, 'up.sock')
 
             async def fake_server(reader, writer):
-                await asyncio.sleep(10)
+                await reader.read(1)
 
             server = await asyncio.start_unix_server(
                 fake_server, path=sock,
@@ -1278,7 +1276,6 @@ class TestHandleConnection:
                     )
             finally:
                 server.close()
-                await server.wait_closed()
 
     @pytest.mark.asyncio
     async def test_writer_close_raises(self):
@@ -1306,15 +1303,19 @@ class TestRunProxy:
                 td, 'upstream.sock',
             )
             ready = asyncio.Event()
+            stop = asyncio.Event()
 
             async def stop_after_ready():
                 await ready.wait()
                 assert os.path.exists(listen)
                 await asyncio.sleep(0.05)
-                os.kill(os.getpid(), signal.SIGTERM)
+                stop.set()
 
             task = asyncio.create_task(
-                proxy.run_proxy(listen, upstream, ready),
+                proxy.run_proxy(
+                    listen, upstream, ready,
+                    stop_event=stop,
+                ),
             )
             stopper = asyncio.create_task(
                 stop_after_ready(),
@@ -1331,13 +1332,17 @@ class TestRunProxy:
             with open(listen, 'w') as f:
                 f.write('stale')
             ready = asyncio.Event()
+            stop = asyncio.Event()
 
             async def stop_soon():
                 await ready.wait()
-                os.kill(os.getpid(), signal.SIGTERM)
+                stop.set()
 
             task = asyncio.create_task(
-                proxy.run_proxy(listen, upstream, ready),
+                proxy.run_proxy(
+                    listen, upstream, ready,
+                    stop_event=stop,
+                ),
             )
             stopper = asyncio.create_task(stop_soon())
             await asyncio.gather(task, stopper)
@@ -1424,15 +1429,15 @@ class TestIntegration:
             )
             try:
                 ready = asyncio.Event()
-
-                async def run():
-                    await proxy.run_proxy(
+                stop = asyncio.Event()
+                proxy_task = asyncio.create_task(
+                    proxy.run_proxy(
                         listen_sock,
                         upstream_sock,
                         ready,
-                    )
-
-                proxy_task = asyncio.create_task(run())
+                        stop_event=stop,
+                    ),
+                )
                 await ready.wait()
 
                 r, w = (
@@ -1449,11 +1454,10 @@ class TestIntegration:
                 assert b'200 OK' in data
                 assert b'{"ok":true}' in data
                 w.close()
-                os.kill(os.getpid(), signal.SIGTERM)
+                stop.set()
                 await proxy_task
             finally:
                 server.close()
-                await server.wait_closed()
 
     @pytest.mark.asyncio
     async def test_end_to_end_blocked_create(self):
@@ -1467,18 +1471,20 @@ class TestIntegration:
             )
 
             async def docker_fake(reader, writer):
-                await asyncio.sleep(10)
+                await reader.read(1)
 
             server = await asyncio.start_unix_server(
                 docker_fake, path=upstream_sock,
             )
             try:
                 ready = asyncio.Event()
+                stop = asyncio.Event()
                 proxy_task = asyncio.create_task(
                     proxy.run_proxy(
                         listen_sock,
                         upstream_sock,
                         ready,
+                        stop_event=stop,
                     ),
                 )
                 await ready.wait()
@@ -1502,8 +1508,7 @@ class TestIntegration:
                 assert b'403 Forbidden' in data
                 assert b'privileged' in data
                 w.close()
-                os.kill(os.getpid(), signal.SIGTERM)
+                stop.set()
                 await proxy_task
             finally:
                 server.close()
-                await server.wait_closed()
