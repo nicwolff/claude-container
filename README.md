@@ -18,6 +18,10 @@ A portable Docker-based development environment for running [Claude Code](https:
 - (Optional) AWS credentials configured in `~/.aws/` for Bedrock usage
 - (Optional) Claude Code configuration in `~/.claude/` and `~/.claude.json`
 
+## Quickest Start
+
+Clone or download this repo, `cd` into it, and run `make install`.
+
 ## Quick Start
 
 ### 1. Build the container
