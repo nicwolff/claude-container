@@ -7,6 +7,7 @@ A portable Docker-based development environment for running [Claude Code](https:
 - **Claude Code CLI** - Latest version installed and ready to use
 - **AWS CLI v2** - For AWS Bedrock integration and other AWS operations
 - **Docker + Docker Compose** - Filtered Docker access via socket proxy
+- **GitHub CLI (`gh`)** - Create pull requests, manage issues, and interact with GitHub
 - **Python 3 + MCP** - Python debugging support with pre-configured Pdb MCP server
 - **Non-root execution** - Runs as unprivileged `dev` user for security
 - **Volume mounting** - Seamlessly access your host repositories
@@ -17,6 +18,7 @@ A portable Docker-based development environment for running [Claude Code](https:
 - Docker installed on your host machine
 - (Optional) AWS credentials configured in `~/.aws/` for Bedrock usage
 - (Optional) Claude Code configuration in `~/.claude/` and `~/.claude.json`
+- (Optional) GitHub CLI authenticated via `gh auth login` or `CLAUDE_GITHUB_TOKEN` env var for PR/issue workflows
 
 ## Quickest Start
 
@@ -76,6 +78,7 @@ The launcher script passes through these environment variables from your host if
 - **`AWS_PROFILE`** - AWS profile to use (from `~/.aws/config`)
 - **`AWS_REGION`** - AWS region for API calls
 - **`CLAUDE_CODE_USE_BEDROCK`** - Set to `1` to use AWS Bedrock instead of Anthropic API
+- **`CLAUDE_GITHUB_TOKEN`** - GitHub personal access token for `gh` CLI (passed as `GITHUB_TOKEN` inside the container)
 
 Example:
 
@@ -103,8 +106,10 @@ The `claude-container` script automatically mounts:
 |-----------|---------------|---------|
 | Current directory | Same path in container | Your working repository |
 | `~/.aws` | `/home/dev/.aws` | AWS credentials and config |
+| `~/.gitconfig` | `/home/dev/.gitconfig` | Git user identity and settings |
 | `~/.claude` | `/home/dev/.claude` | Claude Code settings |
 | `~/.claude.json` | `/home/dev/.claude.json` | Claude API key config |
+| `~/.config/gh` | `/home/dev/.config/gh` | GitHub CLI auth tokens |
 | `/var/run/docker.sock` | `/var/run/docker-real.sock` | Docker daemon (behind proxy) |
 
 ## Container Details
@@ -165,6 +170,35 @@ aws configure
 # or
 aws configure --profile myprofile
 ```
+
+### GitHub CLI not authenticated
+
+There are two ways to authenticate `gh` inside the container:
+
+**Option 1: Interactive login (recommended for personal use)**
+
+```bash
+# On your host machine
+gh auth login
+```
+
+This stores credentials in `~/.config/gh/` which the container mounts automatically.
+
+**Option 2: `CLAUDE_GITHUB_TOKEN` environment variable**
+
+```bash
+export CLAUDE_GITHUB_TOKEN=ghp_xxxxxxxxxxxxxxxxxxxx
+claude-container
+```
+
+Required token scopes:
+
+- **Classic PAT**: `repo` scope
+- **Fine-grained PAT**: "Contents: Read and write" + "Pull requests: Read and write" on target repos
+
+See GitHub docs for creating tokens: [Managing your personal access tokens](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens)
+
+For more on the GitHub CLI: [About GitHub CLI](https://docs.github.com/en/github-cli/github-cli/about-github-cli)
 
 ### Claude Code not authenticating
 

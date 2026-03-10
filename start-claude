@@ -16,6 +16,12 @@ if [ -S "$REAL_SOCK" ]; then
   done
 fi
 
+# Fix ownership of mounted GitHub CLI config (host uid may differ from dev)
+GH_CONFIG=/home/dev/.config/gh
+if [ -d "$GH_CONFIG" ]; then
+  chown -R dev:dev "$GH_CONFIG" 2>/dev/null || true
+fi
+
 # If first arg doesn't start with '-', run it as a command instead of claude
 if [ $# -gt 0 ] && [ "${1:0:1}" != "-" ]; then
   exec "${DEV_ENV[@]}" "$@"
