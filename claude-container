@@ -53,7 +53,7 @@ if [ -f "${HOME}/.gitconfig" ]; then
 else
   echo "Warning: ~/.gitconfig not found; git identity will be unavailable in the container" >&2
 fi
-[ -d "${HOME}/.config/gh" ] && VOLUMES+=(-v "${HOME}/.config/gh:/home/dev/.config/gh:rw")
+[ -d "${HOME}/.config/gh" ] && VOLUMES+=(-v "${HOME}/.config/gh:/home/dev/.config/gh:ro")
 
 # Mount user plugin directory if it exists
 USER_PLUGINS="${HOME}/.claude-plugins"
