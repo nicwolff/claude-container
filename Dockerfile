@@ -15,7 +15,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   && /tmp/aws/install -i /usr/local/aws-cli -b /usr/local/bin
 
 # Stage 2: Runtime image
-FROM debian:bookworm-slim
+FROM node:bookworm-slim
 
 ARG TARGETARCH
 ENV DEBIAN_FRONTEND=noninteractive \
@@ -47,19 +47,18 @@ COPY --from=aws-builder /usr/local/aws-cli /usr/local/aws-cli
 COPY --from=aws-builder /usr/local/bin/aws /usr/local/bin/aws
 COPY --from=aws-builder /usr/local/bin/aws_completer /usr/local/bin/aws_completer
 
+# Install Claude Code as 'dev'
+RUN npm install -g @anthropic-ai/claude-code@latest && /usr/local/bin/claude --version
+
+# Install MCP Python package for pdb_mcp_server (separate layer for caching)
+RUN python3 -m pip install --user --no-cache-dir mcp
+
 # Non-root user
 RUN useradd -ms /bin/bash dev && \
   usermod -aG sudo dev && \
   echo "dev ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 USER dev
 WORKDIR /work
-
-# Install Claude Code as 'dev' (lands in /home/dev/.local/bin)
-RUN curl -fsSL https://claude.ai/install.sh | bash && \
-    /home/dev/.local/bin/claude --version
-
-# Install MCP Python package for pdb_mcp_server (separate layer for caching)
-RUN python3 -m pip install --user --no-cache-dir mcp
 
 # Copy container plugin (subagents, MCP servers, and config)
 COPY --chown=dev:dev container-plugin /home/dev/container-plugin
