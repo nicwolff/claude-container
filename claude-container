@@ -4,23 +4,28 @@
 set -euo pipefail
 
 IMAGE="claude-code-dev:latest"
+SELF="$(basename "$0")"
+IS_CODEX=0
 
 if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
-  cat <<'HELP'
-Usage: claude-container [CLAUDE_ARGS...] | [COMMAND...]
+  cat <<HELP
+Usage: $SELF [ARGS...] | [COMMAND...]
 
-Launch Claude Code in a Docker container with your current directory mounted.
+Launch ${SELF%%-container} in a Docker container with your current directory
+mounted.
 
   claude-container                Launch Claude Code interactively
   claude-container --model opus   Pass flags to Claude Code
-  claude-container bash           Run an arbitrary command in the container
-  claude-container aws s3 ls      Use container tools directly
+  codex-container                 Launch Codex CLI (--yolo added automatically)
+  <either> bash                   Run an arbitrary command in the container
+  <either> aws s3 ls              Use container tools directly
 
 Environment variables (passed through when set):
   AWS_PROFILE              AWS profile to use
   AWS_REGION               AWS region for API calls
   CLAUDE_CODE_USE_BEDROCK  Set to 1 for AWS Bedrock
   CLAUDE_GITHUB_TOKEN      GitHub personal access token for gh CLI
+  OPENAI_API_KEY           OpenAI API key for Codex (falls back to macOS Keychain)
 HELP
   exit 0
 fi
@@ -36,6 +41,19 @@ if ! docker image inspect "$IMAGE" >/dev/null 2>&1; then
   exit 1
 fi
 
+# When invoked as codex-container, inject --yolo and resolve OPENAI_API_KEY
+if [[ "$SELF" == "codex-container" ]]; then
+  IS_CODEX=1
+  if [ -z "${OPENAI_API_KEY:-}" ]; then
+    OPENAI_API_KEY="$(security find-generic-password -s OPENAI_API_KEY -w 2>/dev/null)" || {
+      echo "Error: OPENAI_API_KEY not found in environment or macOS Keychain" >&2
+      echo "  Store it with: security add-generic-password -s OPENAI_API_KEY -a openai -w 'sk-...'" >&2
+      exit 1
+    }
+  fi
+  set -- codex --yolo "$@"
+fi
+
 # Get absolute path of current directory
 PWD_ABS="$(pwd)"
 PWD_PARENT="$(dirname "${PWD_ABS}")"
@@ -46,8 +64,6 @@ VOLUMES=(
   -v "/var/run/docker.sock:/var/run/docker-real.sock"
 )
 [ -d "${HOME}/.aws" ]      && VOLUMES+=(-v "${HOME}/.aws:/home/dev/.aws:ro")
-[ -d "${HOME}/.claude" ]   && VOLUMES+=(-v "${HOME}/.claude:/home/dev/.claude:rw")
-[ -f "${HOME}/.claude.json" ] && VOLUMES+=(-v "${HOME}/.claude.json:/home/dev/.claude.json:rw")
 if [ -f "${HOME}/.gitconfig" ]; then
   VOLUMES+=(-v "${HOME}/.gitconfig:/home/dev/.gitconfig:ro")
 else
@@ -55,10 +71,17 @@ else
 fi
 [ -d "${HOME}/.config/gh" ] && VOLUMES+=(-v "${HOME}/.config/gh:/home/dev/.config/gh:ro")
 
-# Mount user plugin directory if it exists
-USER_PLUGINS="${HOME}/.claude-plugins"
-if [ -d "$USER_PLUGINS" ]; then
-  VOLUMES+=(-v "${USER_PLUGINS}:/home/dev/user-plugins:ro")
+if [ "$IS_CODEX" -eq 1 ]; then
+  [ -d "${HOME}/.codex" ] && VOLUMES+=(-v "${HOME}/.codex:/home/dev/.codex:rw")
+else
+  [ -d "${HOME}/.claude" ] && VOLUMES+=(-v "${HOME}/.claude:/home/dev/.claude:rw")
+  [ -f "${HOME}/.claude.json" ] && VOLUMES+=(-v "${HOME}/.claude.json:/home/dev/.claude.json:rw")
+
+  # Mount user plugin directory if it exists.
+  USER_PLUGINS="${HOME}/.claude-plugins"
+  if [ -d "$USER_PLUGINS" ]; then
+    VOLUMES+=(-v "${USER_PLUGINS}:/home/dev/user-plugins:ro")
+  fi
 fi
 
 # Run the dev container
@@ -70,4 +93,5 @@ exec docker run --rm -it \
   ${AWS_REGION:+-e "AWS_REGION=${AWS_REGION}"} \
   ${CLAUDE_CODE_USE_BEDROCK:+-e "CLAUDE_CODE_USE_BEDROCK=${CLAUDE_CODE_USE_BEDROCK}"} \
   ${CLAUDE_GITHUB_TOKEN:+-e "GITHUB_TOKEN=${CLAUDE_GITHUB_TOKEN}"} \
+  ${OPENAI_API_KEY:+-e "OPENAI_API_KEY=${OPENAI_API_KEY}"} \
   "$IMAGE" "$@"

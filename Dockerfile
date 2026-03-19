@@ -25,7 +25,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
 # Install runtime packages, Docker CLI, and GitHub CLI, then remove build-only deps
 RUN apt-get update && apt-get install -y --no-install-recommends \
       ca-certificates curl gnupg lsb-release less sudo git \
-      python3 python3-pip python3-venv \
+      python3 python3-pip python3-venv bubblewrap \
   && mkdir -p /etc/apt/keyrings \
   && curl -fsSL https://download.docker.com/linux/debian/gpg \
        | gpg --dearmor -o /etc/apt/keyrings/docker.gpg \
@@ -47,8 +47,11 @@ COPY --from=aws-builder /usr/local/aws-cli /usr/local/aws-cli
 COPY --from=aws-builder /usr/local/bin/aws /usr/local/bin/aws
 COPY --from=aws-builder /usr/local/bin/aws_completer /usr/local/bin/aws_completer
 
-# Install Claude Code as 'dev'
+# Install Claude Code
 RUN npm install -g @anthropic-ai/claude-code@latest && /usr/local/bin/claude --version
+
+# Install OpenAI Codex CLI
+RUN npm install -g @openai/codex
 
 # Install MCP Python package for pdb_mcp_server (separate layer for caching)
 RUN python3 -m pip install --user --no-cache-dir mcp
