@@ -5,6 +5,7 @@ A portable Docker-based development environment for running [Claude Code](https:
 ## Features
 
 - **Claude Code CLI** - Latest version installed and ready to use
+- **OpenAI Codex CLI** - Run `codex-container` to use Codex instead
 - **AWS CLI v2** - For AWS Bedrock integration and other AWS operations
 - **Docker + Docker Compose** - Filtered Docker access via socket proxy
 - **GitHub CLI (`gh`)** - Create pull requests, manage issues, and interact with GitHub
@@ -22,7 +23,7 @@ A portable Docker-based development environment for running [Claude Code](https:
 
 ## Quickest Start
 
-Clone or download this repo, `cd` into it, and run `make install`.
+Clone or download this repo, `cd` into it, and run `make install`. This installs both `claude-container` and `codex-container` (a hard link to the same script that auto-selects Codex CLI).
 
 ## Quick Start
 
@@ -66,6 +67,9 @@ claude-container
 # Pass additional arguments to Claude
 claude-container --model opus
 
+# Launch Codex CLI instead (--yolo is added automatically)
+codex-container
+
 # Run arbitrary commands in the container
 claude-container bash
 claude-container aws s3 ls
@@ -79,6 +83,7 @@ The launcher script passes through these environment variables from your host if
 - **`AWS_REGION`** - AWS region for API calls
 - **`CLAUDE_CODE_USE_BEDROCK`** - Set to `1` to use AWS Bedrock instead of Anthropic API
 - **`CLAUDE_GITHUB_TOKEN`** - GitHub personal access token for `gh` CLI (passed as `GITHUB_TOKEN` inside the container)
+- **`OPENAI_API_KEY`** - OpenAI API key for Codex CLI (falls back to macOS Keychain if not set)
 
 Example:
 
@@ -199,6 +204,21 @@ Required token scopes:
 See GitHub docs for creating tokens: [Managing your personal access tokens](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens)
 
 For more on the GitHub CLI: [About GitHub CLI](https://docs.github.com/en/github-cli/github-cli/about-github-cli)
+
+### Codex CLI not authenticating
+
+`codex-container` pulls `OPENAI_API_KEY` from the environment first, then falls back to the macOS Keychain. To store the key in your Keychain:
+
+```bash
+security add-generic-password -s OPENAI_API_KEY -a openai -w 'sk-...'
+```
+
+Or export it directly:
+
+```bash
+export OPENAI_API_KEY=sk-...
+codex-container
+```
 
 ### Claude Code not authenticating
 
