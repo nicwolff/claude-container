@@ -22,40 +22,9 @@ A portable Docker-based development environment for running [Claude Code](https:
 - (Optional) Claude Code configuration in `~/.claude/` and `~/.claude.json`
 - (Optional) GitHub CLI authenticated via `gh auth login` or `CLAUDE_GITHUB_TOKEN` env var for PR/issue workflows
 
-## Quickest Start
-
-Clone or download this repo, `cd` into it, and run `make install`. This installs `claude-container`, `codex-container`, and `gemini-container` as hard links to the same script, which auto-selects the right CLI.
-
 ## Quick Start
 
-### 1. Build the container
-
-```bash
-docker build --platform linux/amd64 -t claude-code-dev:latest .
-# or for ARM64 (Apple Silicon, ARM servers):
-docker build --platform linux/arm64 -t claude-code-dev:latest .
-```
-
-### 2. Install the launcher script
-
-```bash
-# Make the script executable
-chmod +x claude-container
-
-# Move it to your PATH (optional but recommended)
-sudo mv claude-container /usr/local/bin/
-# or
-mkdir -p ~/bin && mv claude-container ~/bin/
-```
-
-### 3. Run from any repository
-
-```bash
-cd /path/to/your/project
-claude-container
-```
-
-The container will launch with Claude Code ready to assist with your project!
+Clone or download this repo, `cd` into it, and run `make install`. This installs `claude-container`, `codex-container`, and `gemini-container` as hard links to the same script, which auto-selects the right CLI.
 
 ## Usage
 
@@ -89,6 +58,13 @@ claude-container --container-help
 claude-container bash
 claude-container aws s3 ls
 ```
+
+### Authentication
+
+The launcher script mounts your config and auth token directories, so for Claude or Gemini you can
+just SSO before starting the container.
+
+For Codex, the script will export OPENAI_API_KEY from your environment, or from your macOS Keychain.
 
 ### Environment Variables
 
