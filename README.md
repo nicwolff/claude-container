@@ -6,13 +6,14 @@ A portable Docker-based development environment for running [Claude Code](https:
 
 - **Claude Code CLI** - Latest version installed and ready to use
 - **OpenAI Codex CLI** - Run `codex-container` to use Codex instead
+- **Google Gemini CLI** - Run `gemini-container` to use Gemini instead
 - **AWS CLI v2** - For AWS Bedrock integration and other AWS operations
 - **Docker + Docker Compose** - Filtered Docker access via socket proxy
 - **GitHub CLI (`gh`)** - Create pull requests, manage issues, and interact with GitHub
 - **Python 3 + MCP** - Python debugging support with pre-configured Pdb MCP server
 - **Non-root execution** - Runs as unprivileged `dev` user for security
 - **Volume mounting** - Seamlessly access your host repositories
-- **Configuration persistence** - Your Claude and AWS configs are mounted from host
+- **Configuration persistence** - Your Claude, Codex, Gemini, and AWS configs are mounted from host
 
 ## Prerequisites
 
@@ -21,40 +22,9 @@ A portable Docker-based development environment for running [Claude Code](https:
 - (Optional) Claude Code configuration in `~/.claude/` and `~/.claude.json`
 - (Optional) GitHub CLI authenticated via `gh auth login` or `CLAUDE_GITHUB_TOKEN` env var for PR/issue workflows
 
-## Quickest Start
-
-Clone or download this repo, `cd` into it, and run `make install`. This installs both `claude-container` and `codex-container` (a hard link to the same script that auto-selects Codex CLI).
-
 ## Quick Start
 
-### 1. Build the container
-
-```bash
-docker build --platform linux/amd64 -t claude-code-dev:latest .
-# or for ARM64 (Apple Silicon, ARM servers):
-docker build --platform linux/arm64 -t claude-code-dev:latest .
-```
-
-### 2. Install the launcher script
-
-```bash
-# Make the script executable
-chmod +x claude-container
-
-# Move it to your PATH (optional but recommended)
-sudo mv claude-container /usr/local/bin/
-# or
-mkdir -p ~/bin && mv claude-container ~/bin/
-```
-
-### 3. Run from any repository
-
-```bash
-cd /path/to/your/project
-claude-container
-```
-
-The container will launch with Claude Code ready to assist with your project!
+Clone or download this repo, `cd` into it, and run `make install`. This installs `claude-container`, `codex-container`, and `gemini-container` as hard links to the same script, which auto-selects the right CLI.
 
 ## Usage
 
@@ -70,10 +40,31 @@ claude-container --model opus
 # Launch Codex CLI instead (--yolo is added automatically)
 codex-container
 
+# Launch Gemini CLI instead (--yolo is added automatically)
+gemini-container
+
+# Pass CLI flags straight through to the selected tool
+codex-container --help
+gemini-container --help
+
+# Run arbitrary commands in the container with any launcher
+codex-container bash
+gemini-container bash
+
+# Show launcher help instead of CLI help
+claude-container --container-help
+
 # Run arbitrary commands in the container
 claude-container bash
 claude-container aws s3 ls
 ```
+
+### Authentication
+
+The launcher script mounts your config and auth token directories, so for Claude or Gemini you can
+just SSO before starting the container.
+
+For Codex, the script will export OPENAI_API_KEY from your environment, or from your macOS Keychain.
 
 ### Environment Variables
 
@@ -83,6 +74,8 @@ The launcher script passes through these environment variables from your host if
 - **`AWS_REGION`** - AWS region for API calls
 - **`CLAUDE_CODE_USE_BEDROCK`** - Set to `1` to use AWS Bedrock instead of Anthropic API
 - **`CLAUDE_GITHUB_TOKEN`** - GitHub personal access token for `gh` CLI (passed as `GITHUB_TOKEN` inside the container)
+- **`GOOGLE_CLOUD_PROJECT`** - Google Cloud project ID for Gemini CLI Vertex usage
+- **`GOOGLE_CLOUD_LOCATION`** - Google Cloud region for Gemini CLI Vertex usage
 - **`OPENAI_API_KEY`** - OpenAI API key for Codex CLI (falls back to macOS Keychain if not set)
 
 Example:
@@ -114,6 +107,9 @@ The `claude-container` script automatically mounts:
 | `~/.gitconfig` | `/home/dev/.gitconfig` | Git user identity and settings |
 | `~/.claude` | `/home/dev/.claude` | Claude Code settings |
 | `~/.claude.json` | `/home/dev/.claude.json` | Claude API key config |
+| `~/.codex` | `/home/dev/.codex` | Codex CLI settings when using `codex-container` |
+| `~/.gemini` | `/home/dev/.gemini` | Gemini CLI settings when using `gemini-container` |
+| `~/.config/gcloud` | `/home/dev/.config/gcloud` | Google Cloud auth/config when using `gemini-container` |
 | `~/.config/gh` | `/home/dev/.config/gh` | GitHub CLI auth tokens |
 | `/var/run/docker.sock` | `/var/run/docker-real.sock` | Docker daemon (behind proxy) |
 
@@ -219,6 +215,10 @@ Or export it directly:
 export OPENAI_API_KEY=sk-...
 codex-container
 ```
+
+### Gemini CLI not authenticating
+
+`gemini-container` mounts `~/.gemini` and `~/.config/gcloud` into the container so existing Gemini CLI and Google Cloud authentication can be reused there. For Vertex, it also passes through `GOOGLE_CLOUD_PROJECT` and `GOOGLE_CLOUD_LOCATION` when they are set on the host.
 
 ### Claude Code not authenticating
 

@@ -25,7 +25,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
 # Install runtime packages, Docker CLI, and GitHub CLI, then remove build-only deps
 RUN apt-get update && apt-get install -y --no-install-recommends \
       ca-certificates curl gnupg lsb-release less sudo git \
-      python3 python3-pip python3-venv bubblewrap \
+      python3 python3-pip python3-venv bubblewrap ripgrep \
   && mkdir -p /etc/apt/keyrings \
   && curl -fsSL https://download.docker.com/linux/debian/gpg \
        | gpg --dearmor -o /etc/apt/keyrings/docker.gpg \
@@ -53,13 +53,18 @@ RUN npm install -g @anthropic-ai/claude-code@latest && /usr/local/bin/claude --v
 # Install OpenAI Codex CLI
 RUN npm install -g @openai/codex
 
+# Install Google Gemini CLI
+RUN npm install -g @google/gemini-cli@latest
+
 # Install MCP Python package for pdb_mcp_server (separate layer for caching)
 RUN python3 -m pip install --user --no-cache-dir mcp
 
 # Non-root user
 RUN useradd -ms /bin/bash dev && \
   usermod -aG sudo dev && \
-  echo "dev ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+  echo "dev ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers && \
+  mkdir -p /home/dev/.gemini /home/dev/.config/gcloud && \
+  chown -R dev:dev /home/dev/.gemini /home/dev/.config
 USER dev
 WORKDIR /work
 

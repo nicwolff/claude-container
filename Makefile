@@ -14,6 +14,7 @@ test:
 install: build
 	install -m 755 claude-container /usr/local/bin/claude-container
 	ln -f /usr/local/bin/claude-container /usr/local/bin/codex-container
+	ln -f /usr/local/bin/claude-container /usr/local/bin/gemini-container
 
 clean:
 	docker rmi $(IMAGE) 2>/dev/null || true
