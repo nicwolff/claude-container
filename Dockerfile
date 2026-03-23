@@ -42,13 +42,21 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   && apt-get purge -y --auto-remove gnupg lsb-release \
   && rm -rf /var/lib/apt/lists/*
 
+# Non-root user
+RUN useradd -ms /bin/bash dev && \
+  usermod -aG sudo dev && \
+  echo "dev ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers && \
+  mkdir -p /home/dev/.config/gcloud /home/dev/.gemini /home/dev/.local/bin && \
+  chown -R dev:dev /home/dev/.config /home/dev/.gemini /home/dev/.local
+
 # Copy AWS CLI from builder stage
 COPY --from=aws-builder /usr/local/aws-cli /usr/local/aws-cli
 COPY --from=aws-builder /usr/local/bin/aws /usr/local/bin/aws
 COPY --from=aws-builder /usr/local/bin/aws_completer /usr/local/bin/aws_completer
 
 # Install Claude Code
-RUN npm install -g @anthropic-ai/claude-code@latest && /usr/local/bin/claude --version
+RUN sudo --preserve-env=PATH -u dev -H env HOME=/home/dev \
+      bash -lc 'curl -fsSL https://claude.ai/install.sh | bash'
 
 # Install OpenAI Codex CLI
 RUN npm install -g @openai/codex
@@ -57,14 +65,8 @@ RUN npm install -g @openai/codex
 RUN npm install -g @google/gemini-cli@latest
 
 # Install MCP Python package for pdb_mcp_server (separate layer for caching)
-RUN python3 -m pip install --user --no-cache-dir mcp
-
-# Non-root user
-RUN useradd -ms /bin/bash dev && \
-  usermod -aG sudo dev && \
-  echo "dev ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers && \
-  mkdir -p /home/dev/.gemini /home/dev/.config/gcloud && \
-  chown -R dev:dev /home/dev/.gemini /home/dev/.config
+RUN sudo --preserve-env=PATH,PIP_BREAK_SYSTEM_PACKAGES -u dev -H env HOME=/home/dev \
+      python3 -m pip install --user --no-cache-dir mcp
 USER dev
 WORKDIR /work
 
