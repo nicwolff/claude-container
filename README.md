@@ -29,7 +29,7 @@ CLIs, AWS and GitHub CLIs, and Docker tooling pre-installed.
 
 ## Quick Start
 
-Clone or download this repo, `cd` into it, and run `make install`. This installs `claude-container`, `codex-container`, and `gemini-container` as hard links to the same script, which auto-selects the right CLI.
+Clone or download this repo, `cd` into it, and run `make install`. This installs `claude-container`, `codex-container`, and `gemini-container` into `~/.local/bin` as hard links to the same script, which auto-selects the right CLI. If `~/.local/bin` is not already on your `PATH`, the install step prints a reminder.
 
 ## Usage
 
